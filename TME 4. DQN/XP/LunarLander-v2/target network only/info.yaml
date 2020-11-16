@@ -1,0 +1,19 @@
+Q_hat_update_step: 50
+activation: !!python/name:None.tanh ''
+batchsize: 64
+capacity: 1000000
+discount: 0.99
+env: LunarLander-v2
+epsilon: 1
+eta: 0.01
+featExtractor: !!python/name:utils.NothingToDo ''
+freqSave: 1000
+freqTest: 10
+freqVerbose: 10
+fromFile: null
+layers:
+- 200
+lr: 0.001
+nbEpisodes: 1500
+nbTest: 1
+seed: 5

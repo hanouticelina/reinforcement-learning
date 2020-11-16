@@ -324,3 +324,34 @@ def write_yaml(file,dotdict):
     d=dict(dotdict)
     with open(file, 'w', encoding='utf8') as outfile:
         yaml.dump(d, outfile, default_flow_style=False, allow_unicode=True)
+
+
+class NN_Q(torch.nn.Module):
+    def __init__(self,inSize,outSize,activation,layers = []):
+        super(NN_Q,self).__init__()
+        self.layers = nn.ModuleList([])
+        self.activation=activation
+        for x in layers : 
+            self.layers.append(nn.Linear(inSize,x))
+            inSize = x
+        self.layers.append(nn.Linear(inSize,outSize))
+    def forward(self,x):
+        x = self.layers[0](x)
+        for i in range(1,len(self.layers)):
+            x  = self.activation(x)
+            x = self.layers[i](x)
+        return x
+
+class EpsilonGreedyDecay:
+    def __init__(self, epsilon, eta, epsilon_min):
+        self.eta = eta
+        self.epsilon=epsilon
+        self.epsilon_min=epsilon_min
+    def act(self, episode, q_values):
+        decay = self.epsilon / (1 + (self.eta * episode))
+        if decay<self.epsilon_min:
+            decay=self.epsilon_min
+        if np.random.random() > decay:
+            _,action = torch.max(q_values,0) # we take the action that maximize the q_value
+            return action.item()
+        return  np.random.randint(len(q_values))
