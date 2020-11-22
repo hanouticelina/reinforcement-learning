@@ -1,0 +1,22 @@
+env: LunarLander-v2
+seed: 5
+featExtractor: !!python/name:__main__.NothingToDo ''
+freqSave: 1000
+freqTest: 10
+nbTest: 1
+freqVerbose: 100
+fromFile: null
+nbEpisodes: 1500
+activation: !!python/name:torch.tanh ''
+layers:
+- 200
+
+lr: 0.001
+batchsize: 64
+discount: 0.99
+capacity: 1000000
+epsilon : 1
+epsilon_min : 0.01
+Q_hat_update_step: 50
+eta: 0.01
+prior: True
