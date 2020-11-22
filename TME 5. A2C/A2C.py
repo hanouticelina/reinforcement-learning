@@ -24,6 +24,7 @@ class A2C(object):
         self.buffer_size = buffer_size
         self.loss = torch.nn.SmoothL1Loss()
         self.buffer = ReplayBuffer(self.buffer_size)
+        self.D = Memory(opt.capacity,prior=opt.prior) # with prior
         self.discount_factor = 0.99
         self.featureExtractor = opt.featExtractor(env)
         self.actor_lr = actor_lr
@@ -38,7 +39,7 @@ class A2C(object):
         self.optim_C = Adam(self.Critic.parameters(), lr=self.critic_lr)
         self.batchsize = opt.batchsize
         self.count = 0
- 
+        self.device = "cpu"
     
 
     def act(self, observation, reward, done):
@@ -52,40 +53,43 @@ class A2C(object):
             return self.last_action
 
         action = np.argmax(action_scores.detach().numpy())
-        self.buffer.add(self.last_state, self.last_action, reward, observation, done)
-        if len(self.buffer) == self.buffer_size :
-            tuples = self.buffer.sample(self.buffer_size)
-            states, actions, rewards, next_states, dones = tuples
-            critic_loss = self.train_critic(*tuples)
-            advantages = rewards + (1.0 - dones) * self.discount_factor * self.Critic(next_states).squeeze() - self.Critic(states).squeeze()
-            action_masks = F.one_hot(actions, self.action_space.n)
-            probas = self.Actor(states)
-            masked_log_proba = (action_masks * torch.log(probas)).sum(dim=-1)
-            actor_loss = torch.sum(masked_log_proba*advantages.detach())
-
+        self.D.store((self.last_state, self.last_action, reward, observation, done))
+        if self.D.mem_ptr == self.buffer_size :
+            _, _, tuples = self.D.sample(self.buffer_size)
+            states,actions,rewards,next_states,dones = map(list,zip(*tuples)) 
+            rewards=torch.Tensor(rewards).to(device) # rewards tensor
+            dones=torch.BoolTensor(dones).to(device) # done's tensor
+            states=torch.Tensor(states).to(device) # initial states tensor
+            next_states=torch.Tensor(next_states).to(device) # next states tensor
+            tuples = states, actions, rewards, next_states, dones
+            critic_loss = self.update_critic(*tuples)
+            actor_loss = self.update_actor(*tuples)
             self.optim_A.zero_grad()
             self.optim_C.zero_grad()
             actor_loss.backward()
             critic_loss.backward()
             self.optim_A.step()
             self.optim_C.step()
-
-            #if self.count % self.target_hat == 0:
             self.Critic_target = copy.deepcopy(self.Critic)
-
             self.count += 1
-            self.buffer = ReplayBuffer(self.buffer_size)
         self.last_state = observation
         self.last_action = action
         return action
-
-    def train_critic(self,states, actions, rewards, next_states, dones):
+    def update_actor(self, states, actions, rewards, next_states, dones):
+        advantages = rewards + (1.0 - dones) * self.discount_factor * self.Critic(next_states).squeeze() - self.Critic(states).squeeze()
+        action_masks = F.one_hot(actions, self.action_space.n)
+        probas = self.Actor(states)
+        masked_log_proba = (action_masks * torch.log(probas)).sum(dim=-1)
+        actor_loss = torch.sum(masked_log_proba*advantages.detach())
+        return actor_loss
+    def update_critic(self,states, actions, rewards, next_states, dones):
         V = self.Critic(states).squeeze()
         with torch.no_grad():
             next_V = self.Critic_target(next_states).squeeze()
             target = rewards + (1 - dones)*self.discount_factor * next_V
         loss = self.loss(V, target.detach())
         return loss
+    def replay(self,)
     def save(self,outputDir):
         pass
 if __name__ == '__main__':
