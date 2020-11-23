@@ -23,8 +23,7 @@ class A2C(object):
         self.action_space = env.action_space
         self.buffer_size = buffer_size
         self.loss = torch.nn.SmoothL1Loss()
-        self.buffer = ReplayBuffer(self.buffer_size)
-        self.D = Memory(opt.capacity,prior=opt.prior) # with prior
+        self.buffer = Buffer(self.buffer_size)
         self.discount_factor = 0.99
         self.featureExtractor = opt.featExtractor(env)
         self.actor_lr = actor_lr
@@ -53,15 +52,10 @@ class A2C(object):
             return self.last_action
 
         action = np.argmax(action_scores.detach().numpy())
-        self.D.store((self.last_state, self.last_action, reward, observation, done))
-        if self.D.mem_ptr == self.buffer_size :
-            _, _, tuples = self.D.sample(self.buffer_size)
-            states,actions,rewards,next_states,dones = map(list,zip(*tuples)) 
-            rewards=torch.Tensor(rewards).to(device) # rewards tensor
-            dones=torch.BoolTensor(dones).to(device) # done's tensor
-            states=torch.Tensor(states).to(device) # initial states tensor
-            next_states=torch.Tensor(next_states).to(device) # next states tensor
-            tuples = states, actions, rewards, next_states, dones
+        self.buffer.add(self.last_state, self.last_action, reward, observation, done)
+        if len(self.buffer) == self.buffer_size :
+            tuples = self.buffer.sample(self.buffer_size)
+            states, actions, rewards, next_states, dones = tuples
             critic_loss = self.update_critic(*tuples)
             actor_loss = self.update_actor(*tuples)
             self.optim_A.zero_grad()
@@ -72,12 +66,13 @@ class A2C(object):
             self.optim_C.step()
             self.Critic_target = copy.deepcopy(self.Critic)
             self.count += 1
+            self.buffer = Buffer(self.buffer_size)
         self.last_state = observation
         self.last_action = action
         return action
     def update_actor(self, states, actions, rewards, next_states, dones):
         advantages = rewards + (1.0 - dones) * self.discount_factor * self.Critic(next_states).squeeze() - self.Critic(states).squeeze()
-        action_masks = F.one_hot(actions, self.action_space.n)
+        action_masks = F.one_hot(actions.to(torch.int64), self.action_space.n)
         probas = self.Actor(states)
         masked_log_proba = (action_masks * torch.log(probas)).sum(dim=-1)
         actor_loss = torch.sum(masked_log_proba*advantages.detach())
@@ -89,7 +84,6 @@ class A2C(object):
             target = rewards + (1 - dones)*self.discount_factor * next_V
         loss = self.loss(V, target.detach())
         return loss
-    def replay(self,)
     def save(self,outputDir):
         pass
 if __name__ == '__main__':

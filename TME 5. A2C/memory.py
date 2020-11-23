@@ -1,6 +1,28 @@
 import numpy as np
 from collections import deque
 import torch
+import random
+class Buffer:
+    def __init__(self, buffer_size, device = 'cpu'):
+        self.buffer = deque(maxlen=buffer_size)
+        self.device = device
+    def sample(self, n_samples):
+        samples =random.sample(self.buffer, n_samples)
+        
+        states, actions, rewards, next_states, dones = map(list,zip(*samples))
+        rewards = torch.Tensor(np.array(rewards)).to(self.device) # rewards tensor
+        actions = torch.Tensor(np.array(actions)).to(self.device) # rewards tensor
+        print(actions)
+        dones=torch.Tensor(np.array(dones)).to(self.device) # done's tensor
+        states=torch.stack(states).to(self.device) # initial states tensor
+        next_states=torch.stack(next_states).to(self.device) # next states tensor
+        return states, actions, rewards, next_states, dones
+
+    def __len__(self):
+        return len(self.buffer)
+    def add(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+            
 
 class SumTree:
     def __init__(self, mem_size):
