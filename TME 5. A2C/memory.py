@@ -12,7 +12,6 @@ class Buffer:
         states, actions, rewards, next_states, dones = map(list,zip(*samples))
         rewards = torch.Tensor(np.array(rewards)).to(self.device) # rewards tensor
         actions = torch.Tensor(np.array(actions)).to(self.device) # rewards tensor
-        print(actions)
         dones=torch.Tensor(np.array(dones)).to(self.device) # done's tensor
         states=torch.stack(states).to(self.device) # initial states tensor
         next_states=torch.stack(next_states).to(self.device) # next states tensor
