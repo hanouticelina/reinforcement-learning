@@ -18,6 +18,7 @@ from memory import *
 import copy
 from torch.optim import SGD, Adam
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class A2C(object):
     def __init__(self, env, opt, buffer_size, target_hat, actor_lr, critic_lr, n_layers, dim_layers):
         self.action_space = env.action_space
@@ -43,21 +44,21 @@ class A2C(object):
 
     def act(self, observation, reward, done):
         observation = torch.tensor(self.featureExtractor.getFeatures(observation), dtype = torch.float)
-        action_scores = self.Actor(observation)
+        action_scores = Categorical(self.Actor(observation))
         
         if self.last_state == None:
-            action = self.action_space.sample()
+            action = int(action_scores.sample())
             self.last_state = observation
             self.last_action = action
             return self.last_action
 
-        action = np.argmax(action_scores.detach().numpy())
+        action = int(action_scores.sample())
         self.buffer.add(self.last_state, self.last_action, reward, observation, done)
         if len(self.buffer) == self.buffer_size :
             tuples = self.buffer.sample(self.buffer_size)
             states, actions, rewards, next_states, dones = tuples
-            critic_loss = self.update_critic(*tuples)
-            actor_loss = self.update_actor(*tuples)
+            advantages, critic_loss = self.compute_advantage(*tuples)
+            actor_loss = self.update_actor(states, actions, rewards, next_states, dones, advantages)
             self.optim_A.zero_grad()
             self.optim_C.zero_grad()
             actor_loss.backward()
@@ -70,20 +71,26 @@ class A2C(object):
         self.last_state = observation
         self.last_action = action
         return action
-    def update_actor(self, states, actions, rewards, next_states, dones):
-        advantages = rewards + (1.0 - dones) * self.discount_factor * self.Critic(next_states).squeeze() - self.Critic(states).squeeze()
+    def update_actor(self, states, actions, rewards, next_states, dones, advantages):
         action_masks = F.one_hot(actions.to(torch.int64), self.action_space.n)
         probas = self.Actor(states)
         masked_log_proba = (action_masks * torch.log(probas)).sum(dim=-1)
-        actor_loss = torch.sum(masked_log_proba*advantages.detach())
+        actor_loss = -torch.mean(masked_log_proba*advantages.detach())
         return actor_loss
-    def update_critic(self,states, actions, rewards, next_states, dones):
-        V = self.Critic(states).squeeze()
-        with torch.no_grad():
-            next_V = self.Critic_target(next_states).squeeze()
-            target = rewards + (1 - dones)*self.discount_factor * next_V
-        loss = self.loss(V, target.detach())
-        return loss
+    def compute_advantage(self,states, actions, rewards, next_states, dones, mode="TD0"):
+        if mode == "TD0":
+            V = self.Critic(states).squeeze()
+            with torch.no_grad():
+                next_V = self.Critic_target(next_states).squeeze()
+                target = rewards + (1 - dones)*self.discount_factor * next_V
+            loss = self.loss(V, target.detach())
+            return target-V, -loss
+        if mode == "MC":
+            G = self.buffer.MC_estimate(self.gamma)
+            V = self.Critic(states).squeeze()
+            loss = self.loss(V, G.detach())
+            return G - V, -loss
+    
     def save(self,outputDir):
         pass
 if __name__ == '__main__':
