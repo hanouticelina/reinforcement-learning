@@ -1,0 +1,21 @@
+Q_hat_update_step: 50
+activation: !!python/name:None.tanh ''
+batchsize: 100
+capacity: 2000
+discount: 0.999
+env: CartPole-v1
+epsilon: 1
+epsilon_min: 0.01
+eta: 0.01
+featExtractor: !!python/name:utils.NothingToDo ''
+freqSave: 1000
+freqTest: 10
+freqVerbose: 10
+fromFile: null
+layers:
+- 200
+lr: 0.001
+nbEpisodes: 1000
+nbTest: 1
+prior: true
+seed: 5
