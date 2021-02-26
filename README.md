@@ -7,7 +7,7 @@ This repository contains practical work of the course "Reinforcement Learning an
 ## Contents:
 
 * TME 1 : Bandit algorithms (stochastic bandits, contextual bandits, ...)
-* TME 2 : Planning via Dynamic Programming (Value Iteration, Policy Iteration 
+* TME 2 : Planning via Dynamic Programming (Value Iteration, Policy Iteration)
 * TME 3 : Value-Based methods (TD-lambda, Q learning, ...)
 * TME 4 : Deep value-based methodes (DQN, Prioritized Experience Replay,..)
 * TME 5 : Actor-Critic (A2C)
