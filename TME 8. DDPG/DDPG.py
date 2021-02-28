@@ -18,8 +18,10 @@ import copy
 from torch.optim import SGD, Adam
 import torch.autograd
 import torch.optim as optim
+import datetime
 from memory import *
 from utils import *
+from torch.utils.tensorboard import SummaryWriter
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -91,7 +93,7 @@ class DDPGagent:
         pass
 
 if __name__ == '__main__':
-    config = load_yaml('./configs/config_Pendulum.yaml')
+    config = load_yaml('./configs/config_MountainCarContinuous.yaml')
     freqTest = config["freqTest"]
     freqSave = config["freqSave"]
     nbTest = config["nbTest"]
@@ -107,7 +109,6 @@ if __name__ == '__main__':
     tstart = tstart.replace(".", "_")
     outdir = "./XP/DDPG"
 
-
     np.random.seed(config["seed"])
     torch.manual_seed(config["seed"])
     episode_count = config["nbEpisodes"]
@@ -117,26 +118,26 @@ if __name__ == '__main__':
     noise = OUNoise(env.action_space)
     noise.reset()
    
-    log = False
+    log = True
     print("Saving in " + outdir)
     os.makedirs(outdir, exist_ok=True)
     save_src(os.path.abspath(outdir))
     write_yaml(os.path.join(outdir, 'info.yaml'), config)
     if log:
-        logger = LogMe(SummaryWriter(outdir))
+        logger = LogMe(SummaryWriter("runs/runs"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")))
         loadTensorBoard(outdir)
 
     batch_size = 128
     rsum = 0
     mean = 0
-    verbose = True
+    verbose = False
     itest = 0
     reward = 0
     done = False
     cur_frame = 0
     train_reward = []
     test_reward = []
-    verb = True
+    verb = False
     for i in range(episode_count):
         if i % int(config["freqVerbose"]) == 0 and i >= config["freqVerbose"]:
             verbose = verb
@@ -151,7 +152,7 @@ if __name__ == '__main__':
         if i % freqTest == nbTest and i > freqTest:
             itest += 1
             if log:
-                logger.direct_write("rewardTest", mean / nbTest, itest)
+                logger.direct_write("rewardTest_mountain", mean / nbTest, itest)
             test_reward.append(mean / nbTest)
             agent.test = False
 
@@ -183,7 +184,7 @@ if __name__ == '__main__':
             if done:
                 print(str(i) + " rsum=" + str(rsum) + ", " + str(j) + " actions ")
                 if log:
-                    logger.direct_write("reward", rsum, i)
+                    logger.direct_write("train_reward_mountain", rsum, i)
                 train_reward.append(rsum)
                 agent.nbEvents = 0
                 mean += rsum
@@ -192,12 +193,12 @@ if __name__ == '__main__':
                 break
 
     env.close()
-    train_rg = np.arange(len(train_reward))
-    test_rg = np.arange(len(test_reward))
-    fig, ax = plt.subplots(1,2, figsize=(10,5))
-    ax[0].plot(train_rg,train_reward)
-    ax[1].plot(test_rg,test_reward)
-    fig.savefig("reward.png")
-    plt.close(fig)
+    #train_rg = np.arange(len(train_reward))
+    #test_rg = np.arange(len(test_reward))
+    #fig, ax = plt.subplots(1,2, figsize=(10,5))
+    #ax[0].plot(train_rg,train_reward)
+    #ax[1].plot(test_rg,test_reward)
+    #fig.savefig("reward.png")
+    #plt.close(fig)
 
     
