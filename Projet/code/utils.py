@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import sys
 import threading
+<<<<<<< Updated upstream
 import matplotlib.pyplot as plt
 
 def draw(reward,advRaward,agentName,advAgentName,title):
@@ -23,6 +24,24 @@ def draw(reward,advRaward,agentName,advAgentName,title):
     plt.xlabel("Episode")
     plt.legend(loc="best")
     plt.savefig("XP/"+agentName+" vs "+advAgentName+".png") 
+=======
+import numpy as np
+import torch
+import matplotlib
+
+import matplotlib.pyplot as plt
+
+def draw(reward,advRaward,agentName,advAgentName,title):
+   fig = plt.figure()
+   ax = fig.add_subplot(111)
+   plt.title(title)
+   plt.plot(np.arange(len(reward)),reward,label = agentName)
+   plt.plot(np.arange(len(advRaward)), advRaward, label = advAgentName)
+   plt.ylabel("Reward Cumulé")
+   plt.xlabel("Episode")
+   plt.legend(loc="best")
+   plt.savefig("XP/"+agentName+" vs "+advAgentName+".png") 
+>>>>>>> Stashed changes
 
    
 def loadTensorBoard(outdir):

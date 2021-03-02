@@ -62,7 +62,11 @@ adv = "copy_opponent" #copy_opponent reactionary counter_reactionary statistical
 env.reset()
 
 # Evaluate 
+<<<<<<< Updated upstream
 agents = [agent1, adv]
+=======
+agents = ["reactionary", "statistical"]
+>>>>>>> Stashed changes
 configuration = None
 steps = 1000
 num_episodes = 100
@@ -71,7 +75,13 @@ my_agent_rewards = np.array(results)[:,0]
 adv_agent_rewards = np.array(results)[:,1]
 
 ############# ploting result
+<<<<<<< Updated upstream
 myagent = my_agent_rewards.cumsum()   
 other = adv_agent_rewards.cumsum()
 draw(myagent,other,agentName="Q Agent"\
    ,advAgentName="random Agent",title = "Rewards cumulés en evaluation")
+=======
+       
+draw(my_agent_rewards.cumsum(),adv_agent_rewards.cumsum(),agentName="reactionary Agent"\
+   ,advAgentName="statistical Agent",title = "Les rewards cumulés en evalutaion")
+>>>>>>> Stashed changes
