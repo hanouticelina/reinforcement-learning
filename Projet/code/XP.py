@@ -7,9 +7,9 @@ import kaggle_environments as kg
 import numpy as np
 import torch
 import matplotlib
-
+import datetime
 import matplotlib.pyplot as plt
-
+from torch.utils.tensorboard import SummaryWriter
 from agents.mirrorOpponentAgent import  MirrorOpponentAgent
 from agents.DQNAgent import DQNAgent
 from agents.QAgent import QAgent
@@ -56,13 +56,13 @@ def random_agent(observation, configuration):
 
 # Loading agent from file 
 agent1 = "main.py"
-
+adv = "copy_opponent" #copy_opponent reactionary counter_reactionary statistical
 # my_agent vs other agent
 
 env.reset()
 
 # Evaluate 
-agents = [agent1, random_agent]
+agents = [agent1, adv]
 configuration = None
 steps = 1000
 num_episodes = 100
@@ -71,6 +71,7 @@ my_agent_rewards = np.array(results)[:,0]
 adv_agent_rewards = np.array(results)[:,1]
 
 ############# ploting result
-       
-draw(my_agent_rewards.cumsum(),adv_agent_rewards.cumsum(),agentName="DQN Agent"\
-   ,advAgentName="random Agent",title = "Les rewards cumulés en evalutaion")
+myagent = my_agent_rewards.cumsum()   
+other = adv_agent_rewards.cumsum()
+draw(myagent,other,agentName="Q Agent"\
+   ,advAgentName="random Agent",title = "Rewards cumulés en evaluation")
