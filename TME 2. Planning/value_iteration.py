@@ -8,7 +8,7 @@ import sys
 import matplotlib.pyplot as plt
 
 class ValueIterationAgent(object):
-    """agent that folows value ietration policy"""
+    """Value iteration policy"""
     def __init__(self, statedic, mdp, epsilon = 0.01, gamma= 0.95):
         self.policy, self.value,_ = valueIteration(statedic, mdp, epsilon, gamma)
     def act(self, observation, reward, done):

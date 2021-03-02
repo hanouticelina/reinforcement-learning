@@ -7,6 +7,16 @@ from gym import wrappers, logger
 import numpy as np
 import copy
 
+class EpsilonGreedy:
+    def __init__(self, epsilon):
+        self.epsilon = epsilon
+
+    def act(self, qsa, obs):
+        if np.random.rand() < self.epsilon:
+            return np.random.choice(np.arange(4))
+        else:
+            return np.argmax(qsa[obs])
+
 
 class EpsilonGreedyDecay:
     def __init__(self, epsilon, eta, epsilon_min):
@@ -21,8 +31,16 @@ class EpsilonGreedyDecay:
             return np.argmax(values)
         return  np.random.randint(len(values))
 
+class Boltzmann:
+    def __init__(self, tau):
+        self.tau = tau
+
+    def act(self, qsa, obs):
+        return np.random.choice(np.arange(4), p=softmax(qsa[obs] / self.tau))
 
 
+
+    
 class QLearning(object):
 
     def __init__(self, env, learning_rate, discount, epsilon=1):
@@ -107,7 +125,6 @@ class Dyna_Q(object):
         self.R = defaultdict(lambda : defaultdict(lambda : np.zeros(4)))
 
 
-    # after execution of a_(t-1) we go to st and we get reward = r_(t-1)
     def act(self, s_t, reward, done):
         s_t = str(s_t.tolist())
         a_t = self.explorer.choose(s_t = s_t,Q = self.Q)
@@ -118,12 +135,11 @@ class Dyna_Q(object):
 
     def learn(self, old_st, old_at, reward, s_t):
         max = self.Q[s_t].max()
-        # value-based part
-        self.Q[old_st][old_at] = self.Q[old_st][old_at] + self.alpha * (reward + self.gamma * max  - self.Q[old_st][old_at])
         # model-based part
+        self.Q[old_st][old_at] = self.Q[old_st][old_at] + self.alpha * (reward + self.gamma * max  - self.Q[old_st][old_at])
         self.R[old_st][s_t][old_at] = self.R[old_st][s_t][old_at] + self.alpha_R * (reward - self.R[old_st][s_t][old_at])
         self.P[s_t][old_st][old_at] =  self.P[s_t][old_st][old_at] + self.alpha_R * (int((s_t != old_st)) - self.P[s_t][old_st][old_at])
-
+        # Q-Learning
         states = np.random.choice(np.array(list(self.P.keys())) , size = self.k )
         actions = np.array( [self.action_space.sample() for i in range(self.k) ] )
         for state, action in zip(states, actions):
@@ -135,7 +151,7 @@ if __name__ == '__main__':
 
 
     env = gym.make("gridworld-v0")
-    env.setPlan("gridworldPlans/plan0.txt", {0: -0.01, 3: 1, 4: 1, 5: -1, 6: -1})
+    env.setPlan("gridworldPlans/plan6.txt", {0: -0.01, 3: 1, 4: 1, 5: -1, 6: -1})
 
     env.seed(0)  # Initialise le seed du pseudo-random
     print(env.action_space)  # Quelles sont les actions possibles

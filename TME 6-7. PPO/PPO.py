@@ -168,8 +168,6 @@ class PPO_Clipped_Objective:
             rewards.insert(0, discounted_reward)
         rewards = torch.tensor(rewards).to(self.device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
-        
-        # convert list to tensor
         old_states = torch.stack(memory.states).to(self.device).detach()
         old_actions = torch.stack(memory.actions).to(self.device).detach()
         old_logprobs = torch.stack(memory.logprobs).to(self.device).detach()
