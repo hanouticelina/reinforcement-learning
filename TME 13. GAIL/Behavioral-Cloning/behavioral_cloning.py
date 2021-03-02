@@ -2,17 +2,16 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn import functional as F
-
+from torch.distributions import Categorical
 from torch.optim import Adam
 import numpy as np
 from utils import *
 import math
-
-
+from expert_dataset import *
     
 class BehavioralCloning(nn.Module):
     """
-    Behavioral Cloning class. Modelisation of the pi_theta function.
+    Behavioral Cloning class.
     """
     def __init__(self, input_size, output_size):
         """
@@ -28,8 +27,20 @@ class BehavioralCloning(nn.Module):
                                    nn.Tanh(), 
                                    nn.Linear(64, 32), 
                                    nn.Tanh(), 
-                                   nn.Linear(32, self.act_n)])
-           
+                                   nn.Linear(32, self.act_n),
+                                   nn.Softmax(dim=-1)])
+        
     
     def forward(self, obs):
         return self.pol(obs)
+    
+    def act(self, ob):
+        with torch.no_grad():
+            probs = self.forward(ob)
+            m = Categorical(probs) 
+            action = m.sample().item()
+          
+        return action, probs[action]
+    
+    
+   

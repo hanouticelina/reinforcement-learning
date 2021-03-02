@@ -3,7 +3,7 @@ import torch
 
 
 
-class ExpertDataset(torch.utils.data.Dataset):
+class ExpertDataset:
     """
     Dataset to store expert's transitions
     """
@@ -15,12 +15,13 @@ class ExpertDataset(torch.utils.data.Dataset):
         self.nbFeatures = env.observation_space.shape[0]
         self.nb_actions = env.action_space.n
         self.loadExpertTransitions(path_to_file)
-            
+        self.featureExtractor = opt.featExtractor(env)
+        self.device = device
+        
+        
     def __len__(self):
         return self.expert_states.shape[0]
     
-    def __getitem__(self, idx):
-        return (self.expert_states[idx], self.expert_actions[idx])
     
     def loadExpertTransitions(self, file):
         with open(file, "rb") as handle:
@@ -28,13 +29,15 @@ class ExpertDataset(torch.utils.data.Dataset):
             expert_states = expert_data[:,:self.nbFeatures]
             expert_actions = expert_data[:,self.nbFeatures:]
             self.expert_states = expert_states.contiguous()
-            self.expert_actions = expert_actions.contiguous()
+            self.expert_actions = expert_actions.contiguous().argmax(dim=-1).to(dtype=int)
             
             
+  
     def get_expert_data(self):
-        return self.expert_states, self.expert_actions
-            
 
+        s = torch.tensor(self.expert_states, dtype=float, device=self.device)
+        a = torch.tensor(self.expert_actions, dtype=float, device=self.device)
+        return s, a
     def toOneHot(self, actions):
         actions = actions.view(-1).to(self.longTensor)
         oneHot = torch.zeros(actions.size()[0], self.nb_actions).to(self.floatTensor)

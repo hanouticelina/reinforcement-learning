@@ -56,6 +56,7 @@ class DQNAgent(nn.Module):
         self.gamma = gamma
         self.device = device
         self.train, self.test = True, False
+        self.criterion = torch.nn.MSELoss()
     def act(self, state, epsilon):
        
         if random.random() > epsilon:
@@ -88,8 +89,8 @@ class DQNAgent(nn.Module):
         next_q_value = next_q_state_values.gather(1, torch.max(next_q_values, 1)[1].unsqueeze(1)).squeeze(1)
         expected_q_value = reward + self.gamma * next_q_value * (1 - done)
 
-        loss = (q_value -expected_q_value).pow(2).mean()
-
+        #loss = (q_value -expected_q_value).pow(2).mean()
+        loss = self.criterion(expected_q_value.detach(), q_value)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -121,17 +122,16 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     save_src(os.path.abspath(outdir))
     write_yaml(os.path.join(outdir, 'info.yaml'), config)
-    logger = LogMe(SummaryWriter(SummaryWriter("runs/runs"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))))
-    #loadTensorBoard(SummaryWriter("runs/runs"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")))
+    writer = SummaryWriter("runs/runs"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+   #loadTensorBoard(SummaryWriter("runs/runs"+datetime.datetime.now().strftime("%Y%m%d-%H%M%S")))
 
     rsum = 0
     mean = 0
     itest = 0
     reward = 0
     done = False
-    G = set()
+    it = 0
     for i in range(episode_count):
-        epsilon = epsilon_by_frame(i+1)
         ob = env.reset()
         ob = torch.tensor(featureExtractor.getFeatures(ob), dtype=torch.float).to(device)
         goal, _ = env.sampleGoal()
@@ -144,16 +144,16 @@ def main():
         if i % freqTest == nbTest and i > freqTest:
             print("End of test, mean reward=", mean / nbTest)
             itest += 1
-            logger.direct_write("rewardTest", mean / nbTest, itest)
+            writer.add_scalar("rewardTest", mean / nbTest, itest)
             agent.test = False
 
       
 
         j = 0
          
-        
+        temp = []
         while True:
-            env.render()
+            
             x = torch.cat((ob, goal)).flatten()
             action = agent.act(x, 0.2)
             new_ob, _, _, _=env.step(action)
@@ -162,36 +162,37 @@ def main():
             done=(new_ob==goal).all()
             #sparse rewards
             reward = 1.0 if done else -0.1
-            # HER rewards
-            reward_HER = 1.0 if (tuple(new_ob.reshape(-1).tolist()) in G) else -0.1
-            if reward_HER == 1.0:
-                agent.replay_buffer.push(ob, new_ob, action, reward_HER, new_ob, done)
-                
-            else:
-                agent.replay_buffer.push(ob, goal, action, reward, new_ob, done)
+            temp.append((ob, goal ,action, reward, new_ob, done))
             ob = new_ob
-            rsum += reward
             j+=1
-            if j % 10 == 0 and not agent.test:
+            it += 1
+            if it % 10 == 0 and len(agent.replay_buffer) > batch_size:
                 loss = agent.compute_td_loss(batch_size)
                 losses.append(loss.item())
-            if done:
-                G.add(tuple(ob.reshape(-1).tolist()))
-                
-                print(str(i) + " rsum=" + str(rsum) + ", " + str(j) + " actions ", "dernier état:")
-                logger.direct_write("reward", rsum, i)
+            if it % 1000 == 0:
+                agent.update_target()
+            rsum += reward
+            if done or j == 100:
+                for state, goal, action, reward, next_state, done in temp:
+                    agent.replay_buffer.push( state, goal, action, reward,next_state, done)
+                last = temp[-1][-2]
+                for state, _, action,_, next_state, _ in temp:
+                    done_t = (next_state==last).all()
+                    r = 1.0 if done_t else -0.1
+                    agent.replay_buffer.push( state, next_state, action, r,next_state, done_t)
+                temp = []
+                x, y = ob[0][0], ob[0][1]
+                if i % 10 == 0:
+                    print(str(i) + " rsum=" + str(rsum) + ", " + str(j) + " actions ")
+                writer.add_scalar("reward", rsum, i)
+                writer.add_scalar("x", x, i)
+                writer.add_scalar("y", y, i)
                 agent.nbEvents = 0
                 mean += rsum
                 rsum = 0
                 ob = env.reset()
                 break
-            
-            if j > 100:
-                ob = env.reset()
-                rsum = 0
-                break
                 
-        if i % 1000 == 0:
-            agent.update_target()
+            
     env.close()
 main()

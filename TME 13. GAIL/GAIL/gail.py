@@ -17,6 +17,7 @@ import os
 from torch.autograd import Variable
 from discriminator import *
 from expert_dataset import *
+from torch.distributions import Categorical
 
 beta = 1e-3
 gamma = 0.98
@@ -27,7 +28,9 @@ eps = 0.2
 lam_ent = 1e-3
 
 class Memory:
-    
+    """
+    Memory Buffer
+    """
     def __init__(self):
         self.memory = []
         
@@ -65,10 +68,10 @@ class GAIL(nn.Module):
         self.nb_actions = env.action_space.n
         self.discriminator = Discriminator(self.state_dim, self.nb_actions,device).to(device).double()
         self.criterion = nn.BCELoss()
-        self.v = nn.Sequential(nn.Linear(self.state_dim, h), nn.ReLU(), nn.Linear(h, 1)).to(device).double()
+        self.v = nn.Sequential(nn.Linear(self.state_dim, h), nn.Tanh(), nn.Linear(h, 1)).to(device).double()
         self.pi = nn.Sequential(
             nn.Linear(self.state_dim, h),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(h, self.nb_actions),
             nn.Softmax(dim=-1),
         ).to(device).double()
@@ -92,7 +95,8 @@ class GAIL(nn.Module):
         with torch.no_grad():
             features = self.feature_extractor.getFeatures(observation)
             prob_on_states = self.pi(torch.tensor(features, dtype=float).to(device))
-            action = prob_on_states.argmax(dim=-1).item()
+            prob = Categorical(prob_on_states)
+            action = prob.sample().item()
         return action, prob_on_states[action]
     
         
@@ -121,24 +125,25 @@ class GAIL(nn.Module):
 
     def update(self):
         mem_size = len(self.buffer)
-        x_expert, x_agent = self.sample_from_expert(mem_size), self.sample_from_agent()
-        batch_size = x_expert[0].size(0)
-        
-        exp_label= torch.full((batch_size,1), 1, device=self.device)
-        policy_label = torch.full((batch_size,1), 0, device=self.device)
-        
-        self.optim_discriminator.zero_grad()
-        prob_exp = self.discriminator(x_expert[0], x_expert[1])
-        loss = self.criterion(prob_exp, exp_label.double())
-        
-        prob_policy = self.discriminator(x_agent[0], x_agent[1])
-        loss += self.criterion(prob_policy, policy_label.double())
-        loss.backward()
+        for k in range(K):
+            x_expert, x_agent = self.sample_from_expert(mem_size), self.sample_from_agent()
+            batch_size = x_expert[0].size(0)
 
-        self.optim_discriminator.step()
-        with torch.no_grad():
-            for param in self.discriminator.parameters():
-                param.add_(torch.randn(param.size(), device = self.device) * self.eta)
+            exp_label= torch.full((batch_size,1), 1, device=self.device)
+            policy_label = torch.full((batch_size,1), 0, device=self.device)
+
+            self.optim_discriminator.zero_grad()
+            prob_exp = self.discriminator(x_expert[0], x_expert[1])
+            loss = self.criterion(prob_exp, exp_label.double())
+
+            prob_policy = self.discriminator(x_agent[0], x_agent[1])
+            loss += self.criterion(prob_policy, policy_label.double())
+            loss.backward()
+
+            self.optim_discriminator.step()
+            with torch.no_grad():
+                for param in self.discriminator.parameters():
+                    param.add_(torch.randn(param.size(), device = self.device) * self.eta)
 
         state, action, prob_actions, rewards, new_obs, done = self.buffer.clear(self.device)
         # critic

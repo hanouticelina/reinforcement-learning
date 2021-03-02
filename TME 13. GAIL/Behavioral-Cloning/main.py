@@ -14,8 +14,8 @@ from pathlib import Path
 # Load args
 
 # behavioral cloning args
-lr = 0.003
-epochs = 100
+lr = 3e-3
+epochs = 1000
 
 with open('./configs/config_random_lunar.yaml', 'r') as stream:
     config  = yaml.load(stream,Loader=yaml.Loader)
@@ -23,16 +23,14 @@ env = gym.make(config['env'])
     
 # expert data
 expert_dataset = ExpertDataset(env, "./expert_data/expert.pkl", device)
-batch_size = len(expert_dataset)
-expert_dataloader = DataLoader(expert_dataset, batch_size=batch_size)
+
 
 input_size = env.observation_space.shape[0]
 output_size = env.action_space.n
 
 
 agent = BehavioralCloning(input_size, output_size).to(device)
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(agent.parameters(), lr=lr)
+optimizer = torch.optim.Adam(agent.parameters(), lr=lr)
 
 # training loop
 
@@ -64,47 +62,63 @@ write_yaml(os.path.join(outdir, "info.yaml"), config)
 writer = SummaryWriter(outdir)
 
 
-for k in range(nb_checks):
+rsum = 0
+mean = 0
+verbose = True
+itest = 0
+it = 0
+reward = 0
+done = False
+for i in range(episode_count):
+    if i % int(config.freqVerbose) == 0 and i >= config.freqVerbose:
+        verbose = False #True
+    else:
+        verbose = False
 
-    for epoch in range(epochs):
+    if i % config.freqTest == 0 and i >= config.freqTest:
+        print("Test time! ")
+        mean = 0
+        agent.test = True
 
-        for states, actions in expert_dataloader:
-            states, actions = states.to(device), actions.to(device)
-            optimizer.zero_grad()
-            output = agent(states.float())
-            _, targets = actions.max(dim=1)
-            loss = criterion(output, Variable(targets))
-            loss.backward()
-            optimizer.step() 
+    if i % config.freqTest == config.nbTest and i > config.freqTest:
+        print("End of test, mean reward=", mean / config.nbTest)
+        itest += 1
+        writer.add_scalar("rewardTest", mean / config.nbTest, itest)
+        agent.test = False
 
-    rsum = 0
-    mean = 0
-    verbose = False
-    itest = 0
-    reward = 0
+    if i % config.freqSave == 0:
+        with open(savepath, 'wb') as f:
+            torch.save(agent, f)
+    j = 0
+    if verbose:
+        env.render()
+
     done = False
+    while not(done):              
 
-    for i in range(nb_episodes):
-        done = False
-
-        while not (done):
-
-            # get the action from the imitator
-            probs = agent(torch.tensor(ob).to(device)) # generate distributions over states
-            action = torch.argmax(nn.Softmax()(probs), dim=0).item() # action that maximize log likelihood
-
-            ob_new, reward, done, _ = env.step(action)  # process action
-            ob = ob_new
-            # reward cumulé
-            rsum += reward
-
-            # if game is done
-            if done:
-                agent.nbEvents = 0
-                mean += rsum
-                rsum = 0
-                ob = env.reset()
-                break
-    print(f"{k} mean_rewards={mean/nb_episodes}")
-    writer.add_scalar("reward", mean/nb_episodes, k)
-    env.close()
+        action, prob = agent.act(ob)
+        ob_new, reward, done, _ = env.step(action)
+        ob = ob_new
+        j += 1
+        it += 1
+        rsum += reward
+        if it % epochs == 0 and i > 0:
+            states, actions = expert_dataset.get_expert_data()
+            actions = actions.to(dtype=int)
+            ids = torch.arange(0,len(states), dtype=int, device=device)
+            pi = torch.log(agent(s)[ids, a])
+            L = - pi.mean()
+            optimizer.zero_grad()
+            L.backward()
+            optimizer.step()
+            writer.add_scalar("loss/actor", L, it)
+            
+        if done:
+            if i % config.freqPrint == 0:
+                print(f'{i} rsum={int(rsum)}, {j} actions')
+            writer.add_scalar("reward", rsum, i)
+            mean += rsum
+            rsum = 0
+            ob = env.reset()
+            break
+env.close()
